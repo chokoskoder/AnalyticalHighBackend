@@ -1,6 +1,8 @@
 import {Job , Worker} from 'bullmq';
 import { config } from './config';
 import ExcelJS from 'exceljs';
+import { generateColumnProfiles , recommendCharts } from './services/analysisService';
+import * as dfd from 'danfojs-node'
 
 interface AnalysisJobdata{
     fileBuffer : Buffer , 
@@ -22,7 +24,8 @@ const analysisProcessor = async(job : Job<AnalysisJobdata>) => {
         //to extract the data from job.data by deconstructing it 
 
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(fileBuffer);
+        const properBuffer = Buffer.from(fileBuffer);
+        await workbook.xlsx.load(properBuffer as any);
 
         const resultBySheet: {sheetName : string , data : any[]} [] = []; 
         //we declare that we will get data for each sheet in the form of an array which will have at first the sheetname and then the data in the from we have extracted below
@@ -62,7 +65,57 @@ const analysisProcessor = async(job : Job<AnalysisJobdata>) => {
         });
         console.log(`Successfully parse ${resultBySheet.length} sheets for job ${job.id}.`);
 
-        return resultBySheet;
+        const analysisResults = resultBySheet.map(sheetResult => {
+            if(sheetResult.data.length === 0){
+                return {
+                    sheetName : sheetResult.sheetName,
+                    profiles: null,
+                    suggestions: null
+                };
+            }
+            const df = new dfd.DataFrame(sheetResult.data);
+            const profiles = generateColumnProfiles(df);
+            const suggestions = recommendCharts(profiles);
+
+            console.log(` For sheet '${sheetResult.sheetName}', found ${suggestions.length} chart suggestions.`);
+
+            return {
+                sheetName : sheetResult.sheetName,
+                df,
+                suggestions
+            };
+
+        });
+
+
+// Replace 'console.log(analysisResults);' with this structured logger:
+
+console.log("\n✅✅✅ FINAL ANALYSIS SUMMARY ✅✅✅\n");
+
+analysisResults.forEach(sheetAnalysis => {
+    console.log(`\n-----------------------------------------`);
+    console.log(`📊 Sheet: "${sheetAnalysis.sheetName}"`);
+    console.log(`-----------------------------------------`);
+
+    if (sheetAnalysis.suggestions && sheetAnalysis.suggestions.length > 0) {
+        console.log(`Found ${sheetAnalysis.suggestions.length} chart suggestion(s):`);
+        
+        // console.table is perfect for displaying an array of objects
+        console.table(sheetAnalysis.suggestions);
+
+        // Optional: If you want to see the first few rows of the data that was analyzed
+        console.log("Preview of the data processed:");
+        sheetAnalysis.df.print();
+
+    } else {
+        console.log("No chart suggestions were generated for this sheet.");
+    }
+});
+
+console.log("\n✅✅✅ ANALYSIS COMPLETE ✅✅✅\n");
+
+// The original 'return' is still necessary for the BullMQ worker
+return analysisResults;;
     }
     catch(error){
         console.error(`job ${job.id} failed for file ${job.data.originalName}. Error : ${error}`)
