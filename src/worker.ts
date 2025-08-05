@@ -2,6 +2,8 @@ import {Job , Worker} from 'bullmq';
 import { config } from './config';
 import ExcelJS from 'exceljs';
 import { generateColumnProfiles , recommendCharts } from './services/analysisService';
+import { formatChartData } from './services/formatService';
+import { FinalOutput, SheetResult, FormattedChart } from './types/analysis';
 import * as dfd from 'danfojs-node'
 
 interface AnalysisJobdata{
@@ -20,9 +22,12 @@ const analysisProcessor = async(job : Job<AnalysisJobdata>) => {
 
     try{
 
-        const {fileBuffer} = job.data;
+        const {fileBuffer , originalName} = job.data;
         //to extract the data from job.data by deconstructing it 
-
+        const finalOutput : FinalOutput = {
+            fileName : originalName,
+            sheets : ,
+        };
         const workbook = new ExcelJS.Workbook();
         const properBuffer = Buffer.from(fileBuffer);
         await workbook.xlsx.load(properBuffer as any);
@@ -86,36 +91,7 @@ const analysisProcessor = async(job : Job<AnalysisJobdata>) => {
             };
 
         });
-
-
-// Replace 'console.log(analysisResults);' with this structured logger:
-
-console.log("\n✅✅✅ FINAL ANALYSIS SUMMARY ✅✅✅\n");
-
-analysisResults.forEach(sheetAnalysis => {
-    console.log(`\n-----------------------------------------`);
-    console.log(`📊 Sheet: "${sheetAnalysis.sheetName}"`);
-    console.log(`-----------------------------------------`);
-
-    if (sheetAnalysis.suggestions && sheetAnalysis.suggestions.length > 0) {
-        console.log(`Found ${sheetAnalysis.suggestions.length} chart suggestion(s):`);
-        
-        // console.table is perfect for displaying an array of objects
-        console.table(sheetAnalysis.suggestions);
-
-        // Optional: If you want to see the first few rows of the data that was analyzed
-        console.log("Preview of the data processed:");
-        sheetAnalysis.df.print();
-
-    } else {
-        console.log("No chart suggestions were generated for this sheet.");
-    }
-});
-
-console.log("\n✅✅✅ ANALYSIS COMPLETE ✅✅✅\n");
-
-// The original 'return' is still necessary for the BullMQ worker
-return analysisResults;;
+        return analysisResults;
     }
     catch(error){
         console.error(`job ${job.id} failed for file ${job.data.originalName}. Error : ${error}`)
